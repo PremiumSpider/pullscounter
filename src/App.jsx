@@ -2,19 +2,27 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 
-// Available sprites for random selection
-// https://github.com/PokeAPI/sprites/tree/master/sprites
 const AVAILABLE_SPRITES = [
-  '149.gif',
-  '163.gif',
-  '175.gif',
-  '242.gif',
-  'master-ball.png',
-  'razz-berry.png',
-  'heal-ball.png'
+  '149.gif', '163.gif', '175.gif', '242.gif',
+  'master-ball.png', 'razz-berry.png', 'heal-ball.png'
 ]
 
-// Separate BountyModal component to prevent re-renders
+// Mark component with larger size and black border
+const Mark = ({ position, onClick }) => (
+  <div
+    className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20"
+    style={{ left: position.x, top: position.y }}
+    onClick={onClick}
+  >
+    <div className="text-red-500 text-8xl font-bold select-none" style={{
+      textShadow: '4px 4px 0 #000, -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000'
+    }}>
+      X
+    </div>
+  </div>
+)
+
+// Bounty Modal Component
 const BountyModal = ({ 
   isOpen, 
   onClose, 
@@ -31,7 +39,6 @@ const BountyModal = ({
     interval: initialInterval
   })
 
-  // Reset local state when modal opens
   useEffect(() => {
     if (isOpen) {
       setLocalState({
@@ -177,12 +184,20 @@ const BountyModal = ({
 }
 
 function App() {
+  // Main state
   const [bagCount, setBagCount] = useState(50)
   const [chaseCount, setChaseCount] = useState(8)
   const [prizeImage, setPrizeImage] = useState(null)
   const [showControls, setShowControls] = useState(true)
+  const [currentView, setCurrentView] = useState('bags') // 'bags' or 'sections'
+  const [sectionImage, setSectionImage] = useState(null)
+  
+  // Sprite state
   const [spriteActive, setSpriteActive] = useState(false)
-  const [currentSprite, setCurrentSprite] = useState(AVAILABLE_SPRITES[0])
+  const [currentSprite, setCurrentSprite] = useState('384.gif')
+  const spriteRef = useRef(null)
+  
+  // Bounty state
   const [showBountyModal, setShowBountyModal] = useState(false)
   const [bountyImage, setBountyImage] = useState(null)
   const [bountyText, setBountyText] = useState('')
@@ -190,185 +205,441 @@ function App() {
   const [bountyInterval, setBountyInterval] = useState(10)
   const [bountyActive, setBountyActive] = useState(false)
   const [showBounty, setShowBounty] = useState(false)
-  
-  const controlsTimeout = useRef(null)
-  const animationFrameId = useRef(null)
-  const bountyIntervalRef = useRef(null)
-  const bountyTimeout = useRef(null)
-  const spriteRef = useRef({
-    x: window.innerWidth / 2,
-    y: window.innerHeight / 2,
-    dx: 5,
-    dy: 5,
-    rotation: 0
+
+  // Sections state
+  const [sections, setSections] = useState({
+    A: { count: 0, image: null },
+    B: { count: 0, image: null },
+    C: { count: 0, image: null }
   })
 
-  const calculateHitRatio = () => {
-    if (bagCount === 0) return '0%'
-    const ratio = (chaseCount / bagCount) * 100
-    return `${ratio.toFixed(1)}%`
-  }
+  // Marking state - separate for main and sections
+  const [markingEnabled, setMarkingEnabled] = useState(false)
+  const [mainMarks, setMainMarks] = useState([])
+  const [sectionMarks, setSectionMarks] = useState([])
+  
+  // Calculate total chases across all sections
+  const totalSectionChases = Object.values(sections).reduce((sum, section) => sum + section.count, 0)
 
-  const handleImageUpload = useCallback((e) => {
+  // Handlers for main view marks
+  const handleMainImageClick = useCallback((e) => {
+    if (!markingEnabled) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    setMainMarks(prev => [...prev, { x, y }])
+  }, [markingEnabled])
+
+  const handleMainUndoMark = useCallback(() => {
+    setMainMarks(prev => prev.slice(0, -1))
+  }, [])
+
+  const handleMainClearMarks = useCallback(() => {
+    setMainMarks([])
+  }, [])
+
+  // Handlers for section view marks
+  const handleSectionImageClick = useCallback((e) => {
+    if (!markingEnabled) return
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    setSectionMarks(prev => [...prev, { x, y }])
+  }, [markingEnabled])
+
+  const handleSectionUndoMark = useCallback(() => {
+    setSectionMarks(prev => prev.slice(0, -1))
+  }, [])
+
+  const handleSectionClearMarks = useCallback(() => {
+    setSectionMarks([])
+  }, [])
+
+  const handleSectionImageUpload = (e) => {
     const file = e.target.files[0]
     if (file) {
       const reader = new FileReader()
-      reader.onload = (e) => setPrizeImage(e.target.result)
+      reader.onload = (e) => setSectionImage(e.target.result)
       reader.readAsDataURL(file)
     }
-  }, [])
+  }
 
-  const toggleSprite = useCallback(() => {
-    if (!spriteActive) {
-      // Select a random sprite when activating
-      const randomSprite = AVAILABLE_SPRITES[Math.floor(Math.random() * AVAILABLE_SPRITES.length)]
-      setCurrentSprite(randomSprite)
-    }
-    setSpriteActive(!spriteActive)
-  }, [spriteActive])
-
-  const startBounty = useCallback(() => {
-    if (bountyIntervalRef.current) {
-      clearInterval(bountyIntervalRef.current)
-    }
-    if (bountyTimeout.current) {
-      clearTimeout(bountyTimeout.current)
-    }
-
-    setBountyActive(true)
-    setShowBounty(true)
-    
-    bountyTimeout.current = setTimeout(() => {
-      setShowBounty(false)
-    }, bountyDuration * 1000)
-
-    bountyIntervalRef.current = setInterval(() => {
-      setShowBounty(true)
-      bountyTimeout.current = setTimeout(() => {
-        setShowBounty(false)
-      }, bountyDuration * 1000)
-    }, bountyInterval * 1000)
-  }, [bountyDuration, bountyInterval])
-
-  const stopBounty = useCallback(() => {
-    setBountyActive(false)
-    if (bountyIntervalRef.current) {
-      clearInterval(bountyIntervalRef.current)
-    }
-    if (bountyTimeout.current) {
-      clearTimeout(bountyTimeout.current)
-    }
-    setShowBounty(false)
-  }, [])
+  const handleSectionCountChange = (section, increment) => {
+    setSections(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        count: Math.max(0, prev[section].count + increment)
+      }
+    }))
+  }
 
   const handleBountySave = useCallback((settings) => {
-    const wasActive = bountyActive
-    if (wasActive) {
-      stopBounty()
-    }
-    
     setBountyImage(settings.image)
     setBountyText(settings.text)
     setBountyDuration(settings.duration)
     setBountyInterval(settings.interval)
     setShowBountyModal(false)
-
-    if (wasActive) {
-      // Small delay to ensure state is updated
-      setTimeout(() => {
-        startBounty()
-      }, 100)
-    }
-  }, [bountyActive, stopBounty, startBounty])
-
-  // Handle mouse movement to show controls
-  useEffect(() => {
-    const handleInteraction = () => {
-      setShowControls(true)
-      clearTimeout(controlsTimeout.current)
-      controlsTimeout.current = setTimeout(() => {
-        setShowControls(false)
-      }, 3000)
-    }
-
-    window.addEventListener('mousemove', handleInteraction)
-    window.addEventListener('touchstart', handleInteraction)
-
-    return () => {
-      window.removeEventListener('mousemove', handleInteraction)
-      window.removeEventListener('touchstart', handleInteraction)
-      clearTimeout(controlsTimeout.current)
-    }
   }, [])
 
-  // Sprite animation
+  // Sprite animation effect
   useEffect(() => {
-    if (!spriteActive || showBountyModal) {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-      }
-      return
+    if (spriteActive && spriteRef.current) {
+      const animation = spriteRef.current.animate([
+        { transform: 'rotate(0deg)' },
+        { transform: 'rotate(360deg)' }
+      ], {
+        duration: 2000,
+        iterations: Infinity,
+        easing: 'linear'
+      });
+
+      return () => animation.cancel();
     }
+  }, [spriteActive]);
 
-    const animate = () => {
-      const sprite = spriteRef.current
-      
-      // Update position
-      sprite.x += sprite.dx
-      sprite.y += sprite.dy
-      
-      // Bounce off walls
-      if (sprite.x <= 0 || sprite.x >= window.innerWidth - 100) {
-        sprite.dx *= -1
-        sprite.rotation = Math.random() * 360
-      }
-      if (sprite.y <= 0 || sprite.y >= window.innerHeight - 100) {
-        sprite.dy *= -1
-        sprite.rotation = Math.random() * 360
-      }
+  // Bounty effect
+  useEffect(() => {
+    let bountyInterval;
+    let bountyTimeout;
 
-      // Random direction changes
-      if (Math.random() < 0.02) {
-        sprite.dx = (Math.random() - 0.5) * 10
-        sprite.dy = (Math.random() - 0.5) * 10
-      }
+    if (bountyActive && bountyImage) {
+      const showBountyMessage = () => {
+        setShowBounty(true);
+        bountyTimeout = setTimeout(() => {
+          setShowBounty(false);
+        }, bountyDuration * 1000);
+      };
 
-      // Update DOM element
-      const spriteElement = document.getElementById('bouncing-sprite')
-      if (spriteElement) {
-        spriteElement.style.transform = `translate(${sprite.x}px, ${sprite.y}px) rotate(${sprite.rotation}deg)`
-      }
-
-      animationFrameId.current = requestAnimationFrame(animate)
+      showBountyMessage();
+      bountyInterval = setInterval(showBountyMessage, bountyInterval * 1000);
     }
-
-    animate()
 
     return () => {
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-      }
-    }
-  }, [spriteActive, showBountyModal])
+      clearInterval(bountyInterval);
+      clearTimeout(bountyTimeout);
+    };
+  }, [bountyActive, bountyImage, bountyDuration, bountyInterval]);
 
-  // Clean up on unmount
-  useEffect(() => {
-    return () => {
-      if (bountyIntervalRef.current) {
-        clearInterval(bountyIntervalRef.current)
-      }
-      if (bountyTimeout.current) {
-        clearTimeout(bountyTimeout.current)
-      }
-      if (animationFrameId.current) {
-        cancelAnimationFrame(animationFrameId.current)
-      }
+  // Calculate hit ratios
+  const calculateMainHitRatio = () => {
+    if (bagCount === 0) return '0%';
+    return `${((chaseCount / bagCount) * 100).toFixed(1)}%`;
+  };
+
+  const calculateSectionHitRatio = () => {
+    const totalSectionCounts = sections.A.count + sections.B.count + sections.C.count;
+    if (totalSectionCounts === 0) return '0%';
+    return `${((chaseCount / totalSectionCounts) * 100).toFixed(1)}%`;
+  };
+
+  // Controls component
+  const Controls = () => {
+    const textShadowStyle = {
+      textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000'
+    };
+
+    if (currentView === 'sections') {
+      return (
+        <div className="fixed top-0 left-0 right-0 p-4 z-40">
+          <div className="max-w-7xl mx-auto flex flex-col gap-6">
+            {/* Top row with Return to Bags and Marking toggle */}
+            <div className="flex items-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => {
+                  setCurrentView('bags');
+                  setMarkingEnabled(false);
+                }}
+                className="px-6 py-3 bg-purple-600/60 text-white rounded-lg"
+              >
+                Return to Bags
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setMarkingEnabled(!markingEnabled)}
+                className={`px-6 py-3 rounded-lg ${
+                  markingEnabled 
+                    ? 'bg-green-600/60 text-white' 
+                    : 'bg-purple-600/60 text-white'
+                }`}
+              >
+                {markingEnabled ? 'Marking On' : 'Marking Off'}
+              </motion.button>
+
+              {markingEnabled && sectionMarks.length > 0 && (
+                <>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={handleSectionUndoMark}
+                    className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+                  >
+                    Undo Mark
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={handleSectionClearMarks}
+                    className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+                  >
+                    Clear Marks
+                  </motion.button>
+                </>
+              )}
+            </div>
+
+            {/* Counters */}
+            <div className="flex flex-col gap-4">
+              {/* Chases counter */}
+              <div className="flex items-center gap-4">
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
+                  className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                >
+                  ←
+                </motion.button>
+                <div className="w-32 text-center">
+                  <div className="text-3xl font-bold text-white" style={textShadowStyle}>
+                    {chaseCount}
+                  </div>
+                  <div className="text-sm text-white" style={textShadowStyle}>
+                    Chases
+                  </div>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setChaseCount(chaseCount + 1)}
+                  className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                >
+                  →
+                </motion.button>
+              </div>
+
+              {/* Section counters */}
+              {['A', 'B', 'C'].map((section) => (
+                <div key={section} className="flex items-center gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleSectionCountChange(section, -1)}
+                    className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                  >
+                    ←
+                  </motion.button>
+                  <div className="w-32 text-center">
+                    <div className="text-3xl font-bold text-white" style={textShadowStyle}>
+                      {sections[section].count}
+                    </div>
+                    <div className="text-sm text-white" style={textShadowStyle}>
+                      Section {section}
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => handleSectionCountChange(section, 1)}
+                    className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                  >
+                    →
+                  </motion.button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
     }
-  }, [])
+
+    // Bags view
+    return (
+      <div className="fixed top-0 left-0 right-0 p-4 z-40">
+        <div className="max-w-7xl mx-auto flex flex-col gap-4">
+          {/* First row */}
+          <div className="flex items-center justify-between gap-4">
+            {/* Bag controls */}
+            <div className="flex items-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setBagCount(Math.max(0, bagCount - 1))}
+                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+              >
+                ←
+              </motion.button>
+              
+              <div className="w-24 text-center">
+                <div className="text-3xl font-bold text-white" style={textShadowStyle}>
+                  {bagCount}
+                </div>
+                <div className="text-sm text-white" style={textShadowStyle}>
+                  Bags
+                </div>
+              </div>
+              
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setBagCount(bagCount + 1)}
+                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+              >
+                →
+              </motion.button>
+            </div>
+
+            {/* Center controls */}
+            <div className="flex items-center gap-4">
+              <motion.div
+                ref={spriteRef}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setSpriteActive(!spriteActive)}
+                className={`w-20 h-20 rounded-full overflow-hidden ${
+                  spriteActive ? 'ring-4 ring-purple-500 ring-opacity-50' : ''
+                }`}
+              >
+                <img 
+                  src={currentSprite}
+                  alt="Rayquaza"
+                  className="w-full h-full object-cover"
+                />
+              </motion.div>
+
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setMarkingEnabled(!markingEnabled)}
+                className={`px-6 py-3 rounded-lg ${
+                  markingEnabled 
+                    ? 'bg-green-600/60 text-white' 
+                    : 'bg-purple-600/60 text-white'
+                }`}
+              >
+                {markingEnabled ? 'Marking On' : 'Marking Off'}
+              </motion.button>
+            </div>
+
+            {/* Chase controls */}
+            <div className="flex items-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
+                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+              >
+                ←
+              </motion.button>
+              
+              <div className="w-24 text-center">
+                <div className="text-3xl font-bold text-white" style={textShadowStyle}>
+                  {chaseCount}
+                </div>
+                <div className="text-sm text-white" style={textShadowStyle}>
+                  Chases
+                </div>
+              </div>
+              
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setChaseCount(chaseCount + 1)}
+                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+              >
+                →
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Second row */}
+          <div className="flex items-center justify-center gap-4">
+            {markingEnabled ? (
+              <>
+                {mainMarks.length > 0 && (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={handleMainUndoMark}
+                      className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+                    >
+                      Undo Mark
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={handleMainClearMarks}
+                      className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+                    >
+                      Clear Marks
+                    </motion.button>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    setCurrentView('sections');
+                    setMarkingEnabled(false);
+                  }}
+                  className="px-6 py-3 bg-purple-600/60 text-white rounded-lg"
+                >
+                  Sections
+                </motion.button>
+                {bountyImage ? (
+                  <>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setShowBountyModal(true)}
+                      className="px-6 py-3 bg-purple-600/60 text-white rounded-lg"
+                    >
+                      Modify Bounty
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setBountyActive(!bountyActive)}
+                      className={`px-6 py-3 ${
+                        bountyActive ? 'bg-green-600/60' : 'bg-purple-600/60'
+                      } text-white rounded-lg`}
+                    >
+                      {bountyActive ? 'Stop Bounty' : 'Start Bounty'}
+                    </motion.button>
+                  </>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setShowBountyModal(true)}
+                    className="px-6 py-3 bg-purple-600/60 text-white rounded-lg"
+                  >
+                    Add Bounty
+                  </motion.button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Pulsating background */}
+      {/* Background */}
       <motion.div
         className="fixed inset-0 z-0"
         animate={{
@@ -387,123 +658,11 @@ function App() {
 
       {/* Main content */}
       <div className="relative z-10 min-h-screen">
-        {/* Controls */}
-        <AnimatePresence>
-          {showControls && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="fixed top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent backdrop-blur-sm z-40"
-            >
-              <div className="max-w-7xl mx-auto flex flex-col gap-4">
-                {/* Top row: Bags, Sprite Toggle, Chases */}
-                <div className="flex items-center justify-between gap-4">
-                  {/* Bag controls */}
-                  <div className="flex items-center gap-4">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setBagCount(Math.max(0, bagCount - 1))}
-                      className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl backdrop-blur-sm pointer-events-auto"
-                    >
-                      ←
-                    </motion.button>
-                    
-                    <div className="w-24 text-center">
-                      <div className="text-3xl font-bold text-white">{bagCount}</div>
-                      <div className="text-sm text-white/80">Bags</div>
-                    </div>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setBagCount(bagCount + 1)}
-                      className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl backdrop-blur-sm pointer-events-auto"
-                    >
-                      →
-                    </motion.button>
-                  </div>
+        <Controls />
 
-                  {/* Sprite toggle */}
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={toggleSprite}
-                    className={`w-20 h-20 rounded-full overflow-hidden pointer-events-auto ${
-                      spriteActive ? 'ring-4 ring-purple-500 ring-opacity-50' : ''
-                    }`}
-                  >
-                    <img 
-                      src="/384.gif" // Rayquaza sprite as default
-                      alt="Toggle Sprite"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.style.display = 'none'
-                        e.target.parentElement.innerHTML = '🎮'
-                      }}
-                    />
-                  </motion.button>
-
-                  {/* Chase controls */}
-                  <div className="flex items-center gap-4">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
-                      className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl backdrop-blur-sm pointer-events-auto"
-                    >
-                      ←
-                    </motion.button>
-                    
-                    <div className="w-24 text-center">
-                      <div className="text-3xl font-bold text-white">{chaseCount}</div>
-                      <div className="text-sm text-white/80">Chases</div>
-                    </div>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => setChaseCount(chaseCount + 1)}
-                      className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl backdrop-blur-sm pointer-events-auto"
-                    >
-                      →
-                    </motion.button>
-                  </div>
-                </div>
-
-                {/* Bottom row: Bounty controls */}
-                <div className="flex items-center justify-center gap-4">
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowBountyModal(true)}
-                    className="px-6 py-3 bg-purple-600/60 text-white rounded-lg hover:bg-purple-500/60 transition-colors pointer-events-auto"
-                  >
-                    {bountyImage ? 'Modify Bounty' : 'Add Bounty'}
-                  </motion.button>
-
-                  {bountyImage && (
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => bountyActive ? stopBounty() : startBounty()}
-                      className={`px-6 py-3 ${
-                        bountyActive ? 'bg-green-600/60' : 'bg-purple-600/60'
-                      } text-white rounded-lg transition-colors pointer-events-auto`}
-                    >
-                      {bountyActive ? 'Stop Bounty' : 'Start Bounty'}
-                    </motion.button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Centered hit ratio (only shown when image is uploaded and bounty is not showing) */}
-        <AnimatePresence>
-          {prizeImage && !showBounty && (
+        {/* Hit Ratio Display */}
+        {currentView === 'bags' ? (
+          prizeImage && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -512,32 +671,26 @@ function App() {
             >
               <div className="px-6 py-3 bg-black/50 backdrop-blur-md rounded-xl border border-white/20 shadow-lg">
                 <h2 className="text-2xl font-bold text-white whitespace-nowrap">
-                  {bagCount} Bags / Hit Ratio: {calculateHitRatio()}
+                  Hit Ratio: {calculateMainHitRatio()}
                 </h2>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bouncing Sprite */}
-        {spriteActive && !showBountyModal && (
-          <motion.div
-            id="bouncing-sprite"
-            className="fixed z-20 w-20 h-20"
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-          >
-            <img 
-              src={currentSprite}
-              alt="Bouncing Sprite"
-              className="w-full h-full object-contain"
-              onError={(e) => {
-                e.target.style.display = 'none'
-                e.target.parentElement.innerHTML = '🎮'
-              }}
-            />
-          </motion.div>
+          )
+        ) : (
+          sectionImage && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30"
+            >
+              <div className="px-6 py-3 bg-black/50 backdrop-blur-md rounded-xl border border-white/20 shadow-lg">
+                <h2 className="text-2xl font-bold text-white whitespace-nowrap">
+                  Hit Ratio: {calculateSectionHitRatio()}
+                </h2>
+              </div>
+            </motion.div>
+          )
         )}
 
         {/* Bounty Display */}
@@ -582,7 +735,7 @@ function App() {
           )}
         </AnimatePresence>
 
-        {/* Image display with zoom */}
+        {/* Image display area */}
         <div className="h-screen w-full">
           <TransformWrapper
             initialScale={1}
@@ -595,7 +748,7 @@ function App() {
               contentClass="!w-full !h-full"
             >
               <motion.div
-                className="w-full h-full"
+                className="w-full h-full relative"
                 style={{
                   padding: '12px',
                   background: 'linear-gradient(45deg, #6441A5, #2a0845, #6441A5)',
@@ -610,47 +763,126 @@ function App() {
                   repeatType: "reverse",
                 }}
               >
-                {prizeImage ? (
-                  <img
-                    src={prizeImage}
-                    alt="Prize"
-                    className="w-full h-full object-contain bg-gray-900"
-                    draggable="false"
-                  />
+                {currentView === 'sections' ? (
+                  <div 
+                    className="relative w-full h-full"
+                    onClick={markingEnabled ? handleSectionImageClick : undefined}
+                    style={{ cursor: markingEnabled ? 'crosshair' : 'default' }}
+                  >
+                    {sectionImage ? (
+                      <>
+                        <img
+                          src={sectionImage}
+                          alt="Section"
+                          className="w-full h-full object-contain bg-gray-900"
+                          draggable="false"
+                        />
+                                                {sectionMarks.map((mark, index) => (
+                          <Mark
+                            key={index}
+                            position={mark}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (markingEnabled) {
+                                setSectionMarks(prev => prev.filter((_, i) => i !== index));
+                              }
+                            }}
+                          />
+                        ))}
+                      </>
+                    ) : (
+                      <label className="w-full h-full flex items-center justify-center bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors">
+                        <div className="text-center">
+                          <div className="text-4xl mb-2">📸</div>
+                          <div className="text-white text-lg">Upload Section Image</div>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSectionImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 ) : (
-                  <label className="w-full h-full flex items-center justify-center bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors">
-                    <div className="text-center">
-                      <div className="text-4xl mb-2">📸</div>
-                      <div className="text-white text-lg">Click to Upload Image</div>
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleImageUpload}
-                      className="hidden"
-                    />
-                  </label>
+                  <div 
+                    className="relative w-full h-full"
+                    onClick={markingEnabled ? handleMainImageClick : undefined}
+                    style={{ cursor: markingEnabled ? 'crosshair' : 'default' }}
+                  >
+                    {prizeImage ? (
+                      <>
+                        <img
+                          src={prizeImage}
+                          alt="Prize"
+                          className="w-full h-full object-contain bg-gray-900"
+                          draggable="false"
+                        />
+                        {mainMarks.map((mark, index) => (
+                          <Mark
+                            key={index}
+                            position={mark}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (markingEnabled) {
+                                setMainMarks(prev => prev.filter((_, i) => i !== index));
+                              }
+                            }}
+                          />
+                        ))}
+                      </>
+                    ) : (
+                      <label className="w-full h-full flex items-center justify-center bg-gray-900 cursor-pointer hover:bg-gray-800 transition-colors">
+                        <div className="text-center">
+                          <div className="text-4xl mb-2">📸</div>
+                          <div className="text-white text-lg">Upload Prize Image</div>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onload = (e) => setPrizeImage(e.target.result)
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 )}
               </motion.div>
             </TransformComponent>
           </TransformWrapper>
         </div>
 
-        {/* Ask me what is LIVE text */}
-        <motion.div
-          className="fixed bottom-4 left-4 z-40"
-          animate={{
-            opacity: [0.3, 1, 0.3],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-          }}
-        >
-          <div className="px-4 py-2 bg-black/30 backdrop-blur-sm rounded-lg">
-            <p className="text-white text-lg">Ask me what is LIVE</p>
-          </div>
-        </motion.div>
+        {/* Sprite Animation */}
+        {spriteActive && (
+          <motion.div
+            className="fixed z-20"
+            animate={{
+              x: [0, window.innerWidth - 100],
+              y: [0, window.innerHeight - 100],
+              rotate: [0, 360]
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              repeatType: "reverse",
+              ease: "linear"
+            }}
+          >
+            <img
+              src={currentSprite}
+              alt="Animated Sprite"
+              className="w-20 h-20 object-contain"
+            />
+          </motion.div>
+        )}
       </div>
     </div>
   );
