@@ -197,7 +197,8 @@ function App() {
   const [sectionImage, setSectionImage] = useState(null)
   const [spriteActive, setSpriteActive] = useState(false)
   const [currentSprite, setCurrentSprite] = useState('384.gif')
-  
+  // Add this with your other state declarations
+const [sectionChaseCount, setSectionChaseCount] = useState(8)
   // Bounty state
   const [showBountyModal, setShowBountyModal] = useState(false)
   const [bountyImage, setBountyImage] = useState(null)
@@ -377,11 +378,11 @@ function App() {
     return `${((chaseCount / bagCount) * 100).toFixed(1)}%`
   }
 
-  const calculateSectionHitRatio = () => {
-    const totalSectionCounts = sections.A.count + sections.B.count + sections.C.count
-    if (totalSectionCounts === 0) return '0%'
-    return `${((chaseCount / totalSectionCounts) * 100).toFixed(1)}%`
-  }
+ const calculateSectionHitRatio = () => {
+  const totalSectionCounts = sections.A.count + sections.B.count + sections.C.count
+  if (totalSectionCounts === 0) return '0%'
+  return `${((sectionChaseCount / totalSectionCounts) * 100).toFixed(1)}%` // Changed from chaseCount to sectionChaseCount
+}
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -560,29 +561,29 @@ function App() {
                     <>
                       {/* Chases counter */}
                       <div className="flex items-center gap-4">
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
-                          className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
-                          style={textShadowStyle}
-                        >
-                          ←
-                        </motion.button>
-                        <div className="w-32 text-center">
-  <div className="text-3xl font-bold text-white" style={textShadowStyle}>{chaseCount}</div>
-  <div className="text-sm text-white" style={textShadowStyle}>Chases</div>
+  <motion.button
+    whileHover={{ scale: 1.1 }}
+    whileTap={{ scale: 0.9 }}
+    onClick={() => setSectionChaseCount(Math.max(0, sectionChaseCount - 1))}
+    className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+    style={textShadowStyle}
+  >
+    ←
+  </motion.button>
+  <div className="w-32 text-center">
+    <div className="text-3xl font-bold text-white" style={textShadowStyle}>{sectionChaseCount}</div>
+    <div className="text-sm text-white" style={textShadowStyle}>Chases</div>
+  </div>
+  <motion.button
+    whileHover={{ scale: 1.1 }}
+    whileTap={{ scale: 0.9 }}
+    onClick={() => setSectionChaseCount(sectionChaseCount + 1)}
+    className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+    style={textShadowStyle}
+  >
+    →
+  </motion.button>
 </div>
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => setChaseCount(chaseCount + 1)}
-                          className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
-                          style={textShadowStyle}
-                        >
-                          →
-                        </motion.button>
-                      </div>
 
                       {/* Section counters */}
                       {['A', 'B', 'C'].map((section) => (
