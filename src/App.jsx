@@ -21,6 +21,10 @@ const Mark = ({ position, onClick }) => (
     </div>
   </div>
 )
+// Add this after your state declarations
+const textShadowStyle = {
+  textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000'
+};
 
 // Bounty Modal Component
 const BountyModal = ({ 
@@ -205,9 +209,9 @@ function App() {
   
   // Sections state
   const [sections, setSections] = useState({
-    A: { count: 0, image: null },
-    B: { count: 0, image: null },
-    C: { count: 0, image: null }
+    A: { count: 20, image: null },
+    B: { count: 20, image: null },
+    C: { count: 20, image: null }
   })
 
   // Marking state
@@ -441,70 +445,37 @@ function App() {
   </div>
 ) : null}
 
-{markingEnabled && (
-  currentView === 'bags' ? (
-    <div className="flex items-center gap-4">
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setMarkingEnabled(false)}
-        className="px-6 py-3 bg-green-600/60 text-white rounded-lg"
-      >
-        Marking On
-      </motion.button>
-      {mainMarks.length > 0 && (
-        <>
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleMainUndoMark}
-            className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
-          >
-            Undo Mark
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleMainClearMarks}
-            className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
-          >
-            Clear Marks
-          </motion.button>
-        </>
-      )}
-    </div>
-  ) : (
-    <div className="flex items-center gap-4">
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setMarkingEnabled(false)}
-        className="px-6 py-3 bg-green-600/60 text-white rounded-lg"
-      >
-        Marking On
-      </motion.button>
-      {sectionMarks.length > 0 && (
-        <>
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleSectionUndoMark}
-            className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
-          >
-            Undo Mark
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={handleSectionClearMarks}
-            className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
-          >
-            Clear Marks
-          </motion.button>
-        </>
-      )}
-    </div>
-  )
+{markingEnabled && currentView === 'bags' && (
+  <div className="flex items-center gap-4">
+    <motion.button
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+      onClick={() => setMarkingEnabled(false)}
+      className="px-6 py-3 bg-green-600/60 text-white rounded-lg"
+    >
+      Marking On
+    </motion.button>
+    {mainMarks.length > 0 && (
+      <>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleMainUndoMark}
+          className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+        >
+          Undo Mark
+        </motion.button>
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={handleMainClearMarks}
+          className="px-6 py-3 bg-red-600/60 text-white rounded-lg"
+        >
+          Clear Marks
+        </motion.button>
+      </>
+    )}
+  </div>
 )}
 </div>
 
@@ -520,20 +491,22 @@ function App() {
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setBagCount(Math.max(0, bagCount - 1))}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           ←
                         </motion.button>
                         
                         <div className="w-24 text-center">
-                          <div className="text-3xl font-bold text-white">{bagCount}</div>
-                          <div className="text-sm text-white">Bags</div>
-                        </div>
+  <div className="text-3xl font-bold text-white" style={textShadowStyle}>{bagCount}</div>
+  <div className="text-sm text-white" style={textShadowStyle}>Bags</div>
+</div>
                         
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setBagCount(bagCount + 1)}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           →
                         </motion.button>
@@ -562,20 +535,22 @@ function App() {
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           ←
                         </motion.button>
                         
                         <div className="w-24 text-center">
-                          <div className="text-3xl font-bold text-white">{chaseCount}</div>
-                          <div className="text-sm text-white">Chases</div>
-                        </div>
+  <div className="text-3xl font-bold text-white" style={textShadowStyle}>{chaseCount}</div>
+  <div className="text-sm text-white" style={textShadowStyle}>Chases</div>
+</div>
                         
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setChaseCount(chaseCount + 1)}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           →
                         </motion.button>
@@ -590,18 +565,20 @@ function App() {
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setChaseCount(Math.max(0, chaseCount - 1))}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           ←
                         </motion.button>
                         <div className="w-32 text-center">
-                          <div className="text-3xl font-bold text-white">{chaseCount}</div>
-                          <div className="text-sm text-white">Chases</div>
-                        </div>
+  <div className="text-3xl font-bold text-white" style={textShadowStyle}>{chaseCount}</div>
+  <div className="text-sm text-white" style={textShadowStyle}>Chases</div>
+</div>
                         <motion.button
                           whileHover={{ scale: 1.1 }}
                           whileTap={{ scale: 0.9 }}
                           onClick={() => setChaseCount(chaseCount + 1)}
                           className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                          style={textShadowStyle}
                         >
                           →
                         </motion.button>
@@ -621,17 +598,18 @@ function App() {
                               }
                             }))}
                             className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                            style={textShadowStyle}
                           >
                             ←
                           </motion.button>
                           <div className="w-32 text-center">
-                            <div className="text-3xl font-bold text-white">
-                              {sections[section].count}
-                            </div>
-                            <div className="text-sm text-white">
-                              Section {section}
-                            </div>
-                          </div>
+  <div className="text-3xl font-bold text-white" style={textShadowStyle}>
+    {sections[section].count}
+  </div>
+  <div className="text-sm text-white" style={textShadowStyle}>
+    Section {section}
+  </div>
+</div>
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
@@ -643,6 +621,7 @@ function App() {
                               }
                             }))}
                             className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-white text-3xl"
+                            style={textShadowStyle}
                           >
                             →
                           </motion.button>
